@@ -2,7 +2,7 @@ package org.grouplens.samantha.ephemeral;
 
 public class SelectionCriteria {
 
-
+    public final int minRoundNumber;
     public final int n;
     public final String similarityMetric;
     public final String diversityMetric;
@@ -12,10 +12,11 @@ public class SelectionCriteria {
     public final double dropout;
     public final int nthMostDistant;
 
-    public SelectionCriteria(int n, String similarityMetric, String diversityMetric,
+    public SelectionCriteria(int minRoundNumber, int n, String similarityMetric, String diversityMetric,
                              double excludeBelow, int limit,
                              double ratedDropout, double dropout,
                              int nthMostDistant) {
+        this.minRoundNumber = minRoundNumber;
         this.n = n;
         this.similarityMetric = similarityMetric;
         this.diversityMetric = diversityMetric;

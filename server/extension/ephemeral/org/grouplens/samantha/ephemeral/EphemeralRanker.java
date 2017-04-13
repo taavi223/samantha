@@ -21,8 +21,9 @@ import org.grouplens.samantha.server.ranker.RankedResult;
 import org.grouplens.samantha.server.ranker.RankerUtilities;
 import org.grouplens.samantha.server.retriever.RetrievedResult;
 import org.grouplens.samantha.server.retriever.RetrieverUtilities;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import play.Configuration;
-import play.Logger;
 import play.libs.Json;
 
 import java.text.DecimalFormat;
@@ -44,6 +45,9 @@ public class EphemeralRanker extends AbstractRanker {
     private final Map<String, Integer> expt;
     private Random random;
     private Format d = new DecimalFormat("#.###");
+
+    private static Logger logger = LoggerFactory.getLogger(EphemeralRanker.class);
+
 
     public EphemeralRanker(
             Configuration config,
@@ -107,7 +111,7 @@ public class EphemeralRanker extends AbstractRanker {
 //            double roundCount = 0;
 //            RealVector roundVec = new ArrayRealVector(seed.getDimension());
 //
-//            Logger.info("Round {} Intermediate Vector Magnitude: {}", i, seed.getNorm());
+//            logger.info("Round {} Intermediate Vector Magnitude: {}", i, seed.getNorm());
 //            i++;
 //
 //            // Each entry in round is a map from preference to list of movie ids
@@ -148,7 +152,7 @@ public class EphemeralRanker extends AbstractRanker {
 //            seed = seed.mapMultiply(discount).put(roundVec);
 //
 //        }
-//        Logger.info("Desired Vector Magnitude: {}", seed.getNorm());
+//        logger.info("Desired Vector Magnitude: {}", seed.getNorm());
 //
 //        // Normalize vector to keep dot products reasonable.
 //        seed.mapDivideToSelf(seed.getNorm());
@@ -289,18 +293,18 @@ public class EphemeralRanker extends AbstractRanker {
                 RealVector previous =  currentVec.copy();
                 currentVec = currentVec.mapMultiply(1.0 - revertToMeanMultiplier).add(defaultVec.mapMultiply(revertToMeanMultiplier));
                 currentVec = currentVec.unitVector();
-//                Logger.debug("Revert to mean moved vector by cosine of {}", d.format(previous.cosine(currentVec)));
+//                logger.debug("Revert to mean moved vector by cosine of {}", d.format(previous.cosine(currentVec)));
             }
 
 //            if (i == 1) {
-//                Logger.debug("Cosine of {} from initialVec to round 1", d.format(currentVec.cosine(initialRoundVec)));
+//                logger.debug("Cosine of {} from initialVec to round 1", d.format(currentVec.cosine(initialRoundVec)));
 //            } else {
-//                Logger.debug("Cosine of {} from round {} to {}", d.format(currentVec.cosine(initialRoundVec)), i - 1, i);
+//                logger.debug("Cosine of {} from round {} to {}", d.format(currentVec.cosine(initialRoundVec)), i - 1, i);
 //            }
         }
 
 //        if (i > 1) {
-//            Logger.debug("Cosine of {} from initialVec to round {}", d.format(currentVec.cosine(initialVec)), i);
+//            logger.debug("Cosine of {} from initialVec to round {}", d.format(currentVec.cosine(initialVec)), i);
 //        }
 
         return currentVec;
@@ -356,10 +360,10 @@ public class EphemeralRanker extends AbstractRanker {
 
 
     public RankedResult rank(RetrievedResult retrievedResult, RequestContext requestContext) {
-//        Logger.debug("retrieved {} of {} items requested in universe", retrievedResult.getEntityList().size(), retrievedResult.getMaxHits());
+//        logger.debug("retrieved {} of {} items requested in universe", retrievedResult.getEntityList().size(), retrievedResult.getMaxHits());
 
         if (retrievedResult.getEntityList().isEmpty()) {
-            Logger.error("retriever model not loaded");
+            logger.error("retriever model not loaded");
             throw new ConfigurationException("retriever model not loaded");
         }
 
@@ -378,9 +382,9 @@ public class EphemeralRanker extends AbstractRanker {
         try {
             JsonNode rawRoundList = JsonHelpers.getRequiredArray(reqBody, "rounds");
             roundsList = parseRoundsList(rawRoundList);
-//            Logger.debug("Considering {} rounds", roundsList.size());
+//            logger.debug("Considering {} rounds", roundsList.size());
         } catch (BadRequestException e) {
-//            Logger.debug("request does not contain any rounds");
+//            logger.debug("request does not contain any rounds");
         }
 
         // Get recent highly rated movies and a list of all rated movies
@@ -403,18 +407,18 @@ public class EphemeralRanker extends AbstractRanker {
                     continue;
                 }
             }
-//            Logger.debug("User has rated {} movies", ratedMovieIds.size());
+//            logger.debug("User has rated {} movies", ratedMovieIds.size());
         } catch (BadRequestException e) {
-//            Logger.debug("request does not contain any rated movies");
+//            logger.debug("request does not contain any rated movies");
         }
 
         // Get extra movies to ignore
         List<Integer> ignoredMovieIds = new ArrayList<>();
         try {
             ignoredMovieIds = JsonHelpers.getRequiredListOfInteger(reqBody, "ignoredMovieIds");
-//            Logger.debug("Ignoring {} movies", ignoredMovieIds.size());
+//            logger.debug("Ignoring {} movies", ignoredMovieIds.size());
         } catch (BadRequestException e) {
-//            Logger.debug("request does not contain any ignored movies");
+//            logger.debug("request does not contain any ignored movies");
         }
 
         /*
@@ -426,7 +430,7 @@ public class EphemeralRanker extends AbstractRanker {
 
         // Get the set of movies to exclude
         Set<Integer> exclusions = getExclusions(roundsList);
-//        Logger.debug("Excluding {} movies shown in previous rounds", exclusions.size());
+//        logger.debug("Excluding {} movies shown in previous rounds", exclusions.size());
         exclusions.addAll(ignoredMovieIds); // put any exclusions specified in the request
 
         // Get the universe of items, excluding previously shown items
@@ -434,7 +438,7 @@ public class EphemeralRanker extends AbstractRanker {
                 .filter(obj -> !exclusions.contains(obj.get("movieId").asInt()))
                 .collect(Collectors.toList());
         if (universe.isEmpty()) {
-            Logger.error("retriever and ephemeral model mismatch, no movies in both!");
+            logger.error("retriever and ephemeral model mismatch, no movies in both!");
             throw new ConfigurationException("retriever and ephemeral model mismatch, no movies in both!");
         }
 
@@ -451,9 +455,9 @@ public class EphemeralRanker extends AbstractRanker {
             } else if (expt.get("origin") == 1){ // current user's vec
                 try {
                     initialVec = getUserVector(userId);
-//                    Logger.debug("Using a starting point personalized to long-term preference");
+//                    logger.debug("Using a starting point personalized to long-term preference");
                 } catch (NoSuchElementException e) {
-                    Logger.warn("User {} had no user vector to use for initial vector", userId);
+                    logger.warn("User {} had no user vector to use for initial vector", userId);
                     initialVec = null; // Go with condition 0
                 }
             } else if (expt.get("origin") == 2) { // average user's recent highly rated items
@@ -462,9 +466,9 @@ public class EphemeralRanker extends AbstractRanker {
                             .reduce((v1, v2) -> v1.add(v2))
                             .get()
                             .mapDivide(recentlyRatedVecs.size());
-//                    Logger.debug("Using a starting point personalized to short-term preference with {} movies", recentlyRatedVecs.size());
+//                    logger.debug("Using a starting point personalized to short-term preference with {} movies", recentlyRatedVecs.size());
                 } else {
-                    Logger.warn("User {} had no positively rated movies to construct initial vector from", userId);
+                    logger.warn("User {} had no positively rated movies to construct initial vector from", userId);
                     initialVec = null; // Go with condition 0
                 }
             }
@@ -497,7 +501,7 @@ public class EphemeralRanker extends AbstractRanker {
             // Select items according to the selection criteria
             List<ObjectNode> selected = new ArrayList<>();
             for (SelectionCriteria criteria : selectionCriteria) {
-//                Logger.debug("Selecting {} of {} movies: ratedDropout={}, dropout={}",
+//                logger.debug("Selecting {} of {} movies: ratedDropout={}, dropout={}",
 //                        criteria.n, criteria.limit, criteria.ratedDropout, criteria.dropout);
 
                 // Only re-sort the list when necessary
@@ -506,7 +510,12 @@ public class EphemeralRanker extends AbstractRanker {
                     universe = ordering.immutableSortedCopy(universe);
                 }
 
-                selectItems(selected, universe, ratedMovieIds, criteria);
+                try {
+                    selectItems(selected, universe, ratedMovieIds, criteria);
+                } catch (IndexOutOfBoundsException e) {
+                    logger.error("Unable to select item for user {} for round {}.", userId, currentRoundNum);
+                    throw e;
+                }
             }
 
             // Return the selected items in the correct format.
@@ -562,7 +571,7 @@ public class EphemeralRanker extends AbstractRanker {
             try {
                 movieVec = getMovieVector(entity.get("movieId").asInt());
             } catch (NoSuchElementException e) { // movie not in model!
-                Logger.warn("movie {} not in ephemeral model", entity.get("movieId").asInt());
+                logger.warn("movie {} not in ephemeral model", entity.get("movieId").asInt());
                 continue;
             }
 
@@ -593,7 +602,7 @@ public class EphemeralRanker extends AbstractRanker {
 //        for (String key : Arrays.asList("score1", "score2", "score3", "cosine", "dotProduct", "magnitude")) {
 //            double min = filteredItems.stream().mapToDouble(x -> x.get(key).asDouble()).min().orElse(1.0 / 0.0);
 //            double max = filteredItems.stream().mapToDouble(x -> x.get(key).asDouble()).max().orElse(-1.0 / 0.0);
-//            Logger.debug("{}: min{}, max {}", key, d.format(min), d.format(max));
+//            logger.debug("{}: min{}, max {}", key, d.format(min), d.format(max));
 //        }
 
         return filteredItems;
@@ -647,8 +656,8 @@ public class EphemeralRanker extends AbstractRanker {
                     .map(obj -> obj.get("movieId").asInt())
                     .collect(Collectors.toMap(x -> x, x -> getMovieVector(x)));
 
-            double minValue = - 1.0 / 0.0;
-            double maxValue = 1.0 / 0.0;
+//            double minValue = - 1.0 / 0.0;
+//            double maxValue = 1.0 / 0.0;
             int numIterated = 0;
             int numCompared = 0;
             for (ObjectNode obj : candidates) {
@@ -667,25 +676,30 @@ public class EphemeralRanker extends AbstractRanker {
                 }
                 numCompared++;
                 top.put(obj, distance);
-
-                if (numCompared == 1) {
-                    maxValue = obj.get(criteria.similarityMetric).asDouble();
-                }
-                if (numCompared >= criteria.limit) {
-                    minValue = obj.get(criteria.similarityMetric).asDouble();
-                    break;
-                }
+//
+//                if (numCompared == 1) {
+//                    maxValue = obj.get(criteria.similarityMetric).asDouble();
+//                }
+//                if (numCompared >= criteria.limit) {
+//                    minValue = obj.get(criteria.similarityMetric).asDouble();
+//                    break;
+//                }
             }
 
-            ObjectNode chosen = top.min();
-            selected.add(chosen);
+            try {
+                ObjectNode chosen = top.min();
+                selected.add(chosen);
+            } catch (IndexOutOfBoundsException e) {
+                logger.error("Unable to select most distant item {}. Compared {} of {} items from {} total candidates following selectionCriteria for round {}+", selected.size() + 1, numCompared, numIterated, candidates.size(), criteria.minRoundNumber);
+                throw e;
+            }
 
 //            double distance = getMinDistanceToVectors(
 //                    criteria.diversityMetric,
 //                    selectedMap.values(),
 //                    getMovieVector(chosen.get("movieId").asInt())
 //            );
-//            Logger.debug("Selected item with {}={} after comparing {} of {} items with {}=[{}, {}]",
+//            logger.debug("Selected item with {}={} after comparing {} of {} items with {}=[{}, {}]",
 //                    criteria.diversityMetric, d.format(distance),
 //                    numCompared, numIterated,
 //                    criteria.similarityMetric, d.format(minValue), d.format(maxValue));

@@ -122,6 +122,14 @@ public class EphemeralRankerConfig implements RankerConfig {
             List<SelectionCriteria> selectionCriteriaList = new ArrayList<>();
             List<Configuration> selectionCriteriaListConfig = selectionCriteriaMapConfig.getConfigList(key);
 
+            Integer minRoundNumber;
+            try {
+                minRoundNumber = Integer.parseInt(key);
+                if (minRoundNumber < 0) { throw new NumberFormatException(); }
+            } catch (NumberFormatException e) {
+                throw new ConfigurationException("selectionCriteriaByRound keys must be positive integers");
+            }
+
             int nTotal = 0;
             for (Configuration selectionCriteriaConfig : selectionCriteriaListConfig) {
                 int n = selectionCriteriaConfig.getInt("n");
@@ -135,20 +143,15 @@ public class EphemeralRankerConfig implements RankerConfig {
                 double dropout = selectionCriteriaConfig.getDouble("dropout", 0.0);
                 int nthMostDistant = selectionCriteriaConfig.getInt("nthMostDistant", 1);
 
-                selectionCriteriaList.add(new SelectionCriteria(n, similarityMetric, diversityMetric, excludeBelow, limit, ratedDropout, dropout, nthMostDistant));
+                selectionCriteriaList.add(new SelectionCriteria(minRoundNumber, n, similarityMetric, diversityMetric, excludeBelow, limit, ratedDropout, dropout, nthMostDistant));
             }
 
             if (nTotal != 10) {
                 throw new ConfigurationException("round " + key + " must select 10 items total, not " + nTotal);
             }
 
-            try {
-                int intKey = Integer.parseInt(key);
-                if (intKey < 0) { throw new NumberFormatException(); }
-                selectionCriteriaMap.put(intKey, selectionCriteriaList);
-            } catch (NumberFormatException e) {
-                throw new ConfigurationException("selectionCriteriaByRound keys must be positive integers");
-            }
+            selectionCriteriaMap.put(minRoundNumber, selectionCriteriaList);
+
         }
         if (!selectionCriteriaMap.containsKey(1)) {
             throw new ConfigurationException("selectionCriteriaByRound must contain key 1");
