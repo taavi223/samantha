@@ -437,10 +437,6 @@ public class EphemeralRanker extends AbstractRanker {
         List<ObjectNode> universe = retrievedResult.getEntityList().stream()
                 .filter(obj -> !exclusions.contains(obj.get("movieId").asInt()))
                 .collect(Collectors.toList());
-        if (universe.isEmpty()) {
-            logger.error("retriever and ephemeral model mismatch, no movies in both!");
-            throw new ConfigurationException("retriever and ephemeral model mismatch, no movies in both!");
-        }
 
         /*
          * STEP 3: Pick which algorithm to use based on experimental condition.
@@ -497,6 +493,10 @@ public class EphemeralRanker extends AbstractRanker {
             // a filtered list of only the items that were successfully scored.
             // This filters out any items that are not in our model...
             universe = scoreAndFilterItems(desiredVec, universe);
+            if (universe.isEmpty()) {
+                logger.error("retriever and ephemeral model mismatch, no movies in both!");
+                throw new ConfigurationException("retriever and ephemeral model mismatch, no movies in both!");
+            }
 
             // Select items according to the selection criteria
             List<ObjectNode> selected = new ArrayList<>();
